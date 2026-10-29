@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Скины интерфейса v3.6.5 — что изменилось</title>
+    <style>
+      :root {
+        --bg: #070a13;
+        --panel: #10172e;
+        --text: #e8f0ff;
+        --muted: #8fa3c4;
+        --cyan: #00f0ff;
+        --magenta: #ff00a0;
+        --lime: #7dff00;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        padding-bottom: 60px;
+      }
+      header {
+        padding: 22px 16px 18px;
+        background: linear-gradient(180deg, #121a33 0%, var(--bg) 100%);
+        border-bottom: 1px solid rgba(0, 240, 255, 0.18);
+        text-align: center;
+      }
+      h1 { margin: 0; font-size: 20px; line-height: 1.25; color: var(--cyan); }
+      header p { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+      main { max-width: 940px; margin: 0 auto; padding: 22px 14px 0; }
+      h2 {
+        font-size: 14px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--magenta);
+        margin: 30px 0 12px;
+      }
+      h2:first-child { margin-top: 0; }
+      .slots { display: grid; gap: 10px; grid-template-columns: 1fr; }
+      @media (min-width: 720px) { .slots { grid-template-columns: repeat(3, 1fr); } }
+      .slot {
+        background: var(--panel);
+        border: 1px solid rgba(0, 240, 255, 0.18);
+        border-radius: 12px;
+        padding: 13px 14px;
+      }
+      .slot .ico { font-size: 20px; }
+      .slot b { display: block; margin: 6px 0 3px; font-size: 13.5px; }
+      .slot span { font-size: 12.5px; color: var(--muted); }
+      .slot.on { border-color: rgba(125, 255, 0, 0.4); }
+
+      .cards { display: grid; gap: 14px; grid-template-columns: 1fr; }
+      @media (min-width: 760px) { .cards { grid-template-columns: 1fr 1fr; } }
+      .card {
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 16px;
+        padding: 13px;
+      }
+      .card-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+      .card-h b { font-size: 14px; }
+      .card-h span { font-size: 11px; color: var(--muted); }
+      .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--acc); display: inline-block; margin-right: 7px; }
+
+      /* ── макет приложения: хром окрашен, сцена — нет ── */
+      .app { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,.08); background: #05070d; }
+      .hudbar {
+        display: flex; align-items: center; gap: 6px;
+        padding: 7px 9px;
+        background: var(--panel-deep);
+        border-bottom: 1px solid var(--acc-border);
+      }
+      .lvl {
+        font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px;
+        color: var(--acc); background: var(--acc-soft); border: 1px solid var(--acc-border);
+      }
+      .av { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center;
+        font-size: 10px; background: var(--panel-deep); border: 1px solid var(--acc-border);
+        box-shadow: 0 0 8px var(--acc-glow); }
+      .name { font-size: 10.5px; color: #c7d3e6; font-weight: 600; }
+      .hudchips { display: flex; gap: 4px; margin-left: auto; }
+      .hchip { font-size: 9px; padding: 2px 5px; border-radius: 4px; color: var(--acc);
+        background: var(--acc-soft); border: 1px solid var(--acc-border); }
+      .scene {
+        height: 74px; position: relative;
+        background:
+          radial-gradient(110% 80% at 50% 0%, rgba(255, 0, 160, 0.2), transparent 62%),
+          linear-gradient(180deg, #101a2e 0%, #0a0f1c 100%);
+      }
+      .scene::after { content: 'АРТ СТОЛА — НЕ МЕНЯЕТСЯ'; position: absolute; inset: 0;
+        display: grid; place-items: center; font-size: 8.5px; letter-spacing: .16em;
+        color: rgba(255,255,255,.3); }
+      .body { padding: 9px; display: flex; flex-direction: column; gap: 7px; }
+      .hack {
+        font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .1em;
+        padding: 8px 0; border-radius: 9px; border: none; color: #06101a;
+        background: linear-gradient(135deg, var(--acc), var(--acc2));
+        box-shadow: 0 0 16px var(--acc-glow);
+      }
+      .panel {
+        border-radius: 9px; border: 1px solid var(--acc-border);
+        background: var(--panel-deep); padding: 7px 8px;
+      }
+      .panel-h { font-size: 8.5px; letter-spacing: .1em; font-weight: 700; color: var(--acc); margin-bottom: 5px; }
+      .row { display: flex; justify-content: space-between; font-size: 10px; color: #b9c6da; padding: 1.5px 0; }
+      .row b { color: var(--acc); }
+      .tabs { display: flex; gap: 4px; }
+      .tab { font-size: 9px; padding: 3px 7px; border-radius: 5px; border: 1px solid transparent; color: #7d8ba3; }
+      .tab.on { color: var(--acc); background: var(--acc-soft); border-color: var(--acc-border); }
+
+      .note {
+        margin: 0 0 16px; padding: 13px 15px; border-radius: 12px;
+        border: 1px dashed rgba(125, 255, 0, 0.4); background: rgba(125, 255, 0, 0.06);
+        font-size: 13px; color: #cfe8c0;
+      }
+      .note b { color: var(--lime); }
+      .fixlist { margin: 0; padding-left: 18px; font-size: 13px; color: #c3d2e8; }
+      .fixlist li { margin-bottom: 6px; }
+      .fixlist code { font-family: ui-monospace, monospace; font-size: 11.5px;
+        background: rgba(0,240,255,.1); color: #9fe8ff; padding: 1px 5px; border-radius: 4px; }
+      footer { text-align: center; font-size: 12px; color: #5f7391; margin-top: 34px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Скины интерфейса — теперь реально красят интерфейс</h1>
+      <p>v3.6.5 · три независимых слота · арт стола не трогается</p>
+    </header>
+
+    <main>
+      <p class="note">
+        <b>Что было сломано:</b> все три категории писались в одно поле — надел интерфейс,
+        слетел стол и аватар. А сам скин интерфейса красил не панели, а арт рабочего стола.
+      </p>
+
+      <h2>Три слота — можно носить всё сразу</h2>
+      <div class="slots">
+        <div class="slot on">
+          <span class="ico">🖥️</span>
+          <b>Рабочий стол</b>
+          <span>Меняет арт сцены и его фильтр. Живёт в <code>equipped_skin</code>.</span>
+        </div>
+        <div class="slot on">
+          <span class="ico">🎛️</span>
+          <b>Интерфейс</b>
+          <span>Красит панели, кнопки, рамки, вкладки. Свой слот в <code>stats.equippedUi</code>.</span>
+        </div>
+        <div class="slot on">
+          <span class="ico">🧑‍💻</span>
+          <b>Аватар</b>
+          <span>Глиф и рамка в шапке. Свой слот в <code>stats.equippedAvatar</code>.</span>
+        </div>
+      </div>
+
+      <h2>Как выглядят все пять скинов интерфейса</h2>
+      <div class="cards" id="cards"></div>
+
+      <h2>Что ещё починено</h2>
+      <ul class="fixlist">
+        <li>Фильтр сцены берётся <b>только</b> из категории «рабочий стол» — сепия от Amber Panels больше не ложится на стол.</li>
+        <li>Бонус к тапу складывается по трём слотам, но режется потолком <b>22%</b> — три скина не ломают баланс.</li>
+        <li>Старые сейвы раскладываются по слотам автоматически: если в общем поле лежал UI-скин или аватар, он переезжает в свой слот, а стол получает дефолт.</li>
+        <li>Повторное «Надеть» не списывает Crypto.</li>
+        <li>HUD-аватар читается из своего слота — больше не пропадает при смене стола.</li>
+      </ul>
+
+      <footer>HACKER COMBAT · v3.6.5 · служебная страница</footer>
+    </main>
+
+    <script>
+      const SKINS = [
+        { name: 'Amber Panels', price: '8 💎 · ур. 3', acc: '#fbbf24', acc2: '#f97316', panel: '#1a1206', text: '#fde9c2' },
+        { name: 'Mint Terminal', price: '14 💎 · ур. 5', acc: '#34d399', acc2: '#06b6d4', panel: '#08201c', text: '#c8f8e6' },
+        { name: 'Grape Protocol', price: '26 💎 · ур. 9', acc: '#a78bfa', acc2: '#6d28d9', panel: '#150f2b', text: '#e4d9ff' },
+        { name: 'Steel Frame', price: '40 💎 · ур. 14', acc: '#94a3b8', acc2: '#475569', panel: '#12161d', text: '#dbe3ee' },
+        { name: 'Crimson HUD', price: '72 💎 · ур. 22', acc: '#f43f5e', acc2: '#881337', panel: '#1c0710', text: '#ffd7dd' },
+      ];
+
+      const hexToRgb = (h) => {
+        const n = parseInt(h.replace('#', ''), 16);
+        return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+      };
+
+      document.getElementById('cards').innerHTML = SKINS.map((s) => `
+        <div class="card" style="
+          --acc: ${s.acc};
+          --acc2: ${s.acc2};
+          --acc-rgb: ${hexToRgb(s.acc)};
+          --acc-soft: rgba(${hexToRgb(s.acc)}, 0.14);
+          --acc-border: rgba(${hexToRgb(s.acc)}, 0.42);
+          --acc-glow: rgba(${hexToRgb(s.acc)}, 0.34);
+          --panel-deep: ${s.panel};
+        ">
+          <div class="card-h">
+            <b><span class="dot"></span>${s.name}</b>
+            <span>${s.price}</span>
+          </div>
+          <div class="app">
+            <div class="hudbar">
+              <div class="av">👻</div>
+              <span class="lvl">УР. 5</span>
+              <span class="name">player</span>
+              <span class="hudchips"><span class="hchip">✨ 12.4K</span><span class="hchip">💎 86</span></span>
+            </div>
+            <div class="scene"></div>
+            <div class="body">
+              <button class="hack">HACK</button>
+              <div class="panel">
+                <div class="panel-h">БАЗА · УЛУЧШЕНИЯ</div>
+                <div class="row"><span>RAM</span><b>ур. 3</b></div>
+                <div class="row"><span>Proxy</span><b>ур. 2</b></div>
+              </div>
+              <div class="tabs">
+                <span class="tab on">Стол</span><span class="tab">Взломы</span><span class="tab">Профиль</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    </script>
+  </body>
+</html>

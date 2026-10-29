@@ -1,0 +1,14 @@
+.env
+.env.local
+.env.*.local
+node_modules/
+dist/
+.vercel/
+.local-db.json
+*.tsbuildinfo
+
+# Генерируется scripts/bundle-api.mjs на этапе сборки (ядро единственной функции Vercel)
+api/_core.cjs
+
+# Generated during local API bundling
+api/[[]...path].js

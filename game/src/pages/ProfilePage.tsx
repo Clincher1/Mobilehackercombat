@@ -1,0 +1,738 @@
+import { Award, BookOpen, Cog, Crown, Edit3, Gem, Globe, Scale, Sparkles, Trophy } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  ACHIEVEMENTS_CONFIG,
+  PUBLIC_ACHIEVEMENTS_COUNT,
+} from '../../shared/achievements.config';
+import { AchievementsPanel } from '../components/AchievementsPanel';
+import { OfflineBackup } from '../components/OfflineBackup';
+import { CollectionPanel } from '../components/CollectionPanel';
+import { MatrixAvatar } from '../components/MatrixAvatar';
+import { PublicProfileModal } from '../components/PublicProfileModal';
+import {
+  CHIP_DAILY_CAP,
+  CHIP_REWARD_PER_DAILY,
+  CHIP_REWARD_PER_GREY_MISSION,
+  CHIP_REWARD_PER_MISSION,
+} from '../../shared/base.config';
+import { getProfileFrame } from '../../shared/profileFrames.config';
+import { getSkinByKey } from '../../shared/skins.config';
+import { getGameDayKey, getPrestigeMultiplier, getPrestigeRequiredLevel } from '../../shared/mechanics';
+import type { LeaderboardSort } from '../../shared/types';
+import { useGame } from '../context/GameContext';
+import { formatCompact } from '../lib/format';
+
+export const ProfilePage: React.FC = () => {
+  const {
+    player,
+    tgProfile,
+    storageMode,
+    leaderboard,
+    leaderboardSort,
+    leaderboardSelf,
+    setLeaderboardSort,
+    refreshLeaderboard,
+    triggerPrestige,
+    updateDemoName,
+    openTutorial,
+    busyKey,
+  } = useGame();
+  const [tab, setTab] = useState<'leaderboard' | 'achievements' | 'collection'>('achievements');
+  const [publicProfileId, setPublicProfileId] = useState<string | null>(null);
+  const [roosterBurstId, setRoosterBurstId] = useState(0);
+  const [fishBurstId, setFishBurstId] = useState(0);
+  const [matrixBurstId, setMatrixBurstId] = useState(0);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
+
+  // Рейтинг обновляем при входе на вкладку и при смене метрики. Раньше он
+  // перезапрашивался на каждое изменение Data — то есть на каждый тап.
+  useEffect(() => {
+    if (tab === 'leaderboard') void refreshLeaderboard();
+  }, [refreshLeaderboard, tab]);
+
+  // Крик рамки — короткий локальный cosmetic-эффект: он не вызывает API,
+  // не тратит ресурсы и срабатывает только для подарочного профиля игрока.
+  useEffect(() => {
+    if (roosterBurstId === 0) return undefined;
+    const timer = window.setTimeout(() => setRoosterBurstId(0), 2_000);
+    return () => window.clearTimeout(timer);
+  }, [roosterBurstId]);
+
+  useEffect(() => {
+    if (fishBurstId === 0) return undefined;
+    const timer = window.setTimeout(() => setFishBurstId(0), 2_200);
+    return () => window.clearTimeout(timer);
+  }, [fishBurstId]);
+
+  useEffect(() => {
+    if (matrixBurstId === 0) return undefined;
+    const timer = window.setTimeout(() => setMatrixBurstId(0), 2_000);
+    return () => window.clearTimeout(timer);
+  }, [matrixBurstId]);
+
+  if (!player) return null;
+
+  const { derived } = player;
+
+  // Визуальное положение ползунка на шкале «Белый хакинг (0%) ←→ Нейтральный (50%) ←→ Чёрный хакинг (100%)»
+  const alignmentDiff = player.heat - player.rep;
+  const alignmentMarkerPct = Math.min(95, Math.max(5, 50 + alignmentDiff * 0.45));
+
+  const requiredPrestigeLevel = getPrestigeRequiredLevel(player.prestigeCount);
+  const nextPrestigeMultiplier = getPrestigeMultiplier(player.prestigeCount + 1);
+  // Дневной счётчик Чипов считаем по тому же игровому дню (Москва), что и сервер:
+  // после полуночи показываем 0, даже если сервер ещё не успел обнулить.
+  const chipsDayIsToday = player.stats.chipsDayKey === getGameDayKey();
+  const chipsToday = chipsDayIsToday
+    ? Math.min(CHIP_DAILY_CAP, Math.floor(player.stats.chipsToday ?? 0))
+    : 0;
+  const chipsLeftToday = Math.max(0, CHIP_DAILY_CAP - chipsToday);
+  const canPrestige = derived.level >= requiredPrestigeLevel;
+  const profileFrame = getProfileFrame(player.stats.equippedProfileFrame);
+  const profileAvatarUrl = profileFrame.avatarUrl ?? tgProfile.photoUrl;
+
+  // Метрики турнирной таблицы. Data тратится (купил карточки — упал в таблице),
+  // XP не тратится никогда, уровень — карьерный итог. Пусть игрок выбирает зачёт.
+  const leaderboardTabs: { id: LeaderboardSort; label: string; icon: React.ReactNode }[] = [
+    { id: 'data', label: 'По Data', icon: <Gem className="w-3.5 h-3.5" /> },
+    { id: 'xp', label: 'По XP', icon: <Sparkles className="w-3.5 h-3.5" /> },
+    { id: 'level', label: 'По уровню', icon: <Trophy className="w-3.5 h-3.5" /> },
+  ];
+
+  const gapLabel =
+    leaderboardSelf === null
+      ? ''
+      : leaderboardSelf.metric === 'level'
+        ? leaderboardSelf.gap === 0
+          ? 'тот же уровень — решает XP'
+          : `${leaderboardSelf.gap} ур.`
+        : leaderboardSelf.metric === 'xp'
+          ? `${formatCompact(leaderboardSelf.gap)} XP`
+          : `${formatCompact(leaderboardSelf.gap)} Data`;
+  const publicUnlockedCount = ACHIEVEMENTS_CONFIG.filter(
+    (a) => !a.secret && player.achievements.includes(a.key)
+  ).length;
+
+  return (
+    <div className="space-y-3.5 pb-6">
+      {/* Карточка профиля игрока (Ник, Аватар, Ранг) */}
+      <div className="rounded-2xl bg-[#10172e] border border-[#00f0ff]/30 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {profileFrame.avatarMode === 'matrix_rain' ? (
+              <div
+                className="relative shrink-0 matrix-avatar-trigger"
+                onClick={() => setMatrixBurstId((value) => value + 1)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setMatrixBurstId((value) => value + 1);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <MatrixAvatar
+                  label={profileFrame.avatarLabel ?? player.username}
+                  burstId={matrixBurstId}
+                  className="w-14 h-14 rounded-2xl border-2"
+                  style={{
+                    borderColor: profileFrame.accent,
+                    borderImage: profileFrame.borderImage,
+                    background: profileFrame.background,
+                    boxShadow: profileFrame.glow,
+                  }}
+                />
+              </div>
+            ) : profileAvatarUrl ? (
+              <div className="relative shrink-0">
+                <img
+                  src={profileAvatarUrl}
+                  alt={player.username}
+                  loading="lazy"
+                  className={`w-14 h-14 rounded-2xl border-2 ${profileFrame.avatarUrl ? 'object-contain p-0.5' : 'object-cover'}`}
+                  style={{
+                    borderColor: profileFrame.accent,
+                    borderImage: profileFrame.borderImage,
+                    background: profileFrame.background,
+                    boxShadow: profileFrame.glow,
+                  }}
+                  title={`Рамка профиля: ${profileFrame.name}`}
+                />
+                {profileFrame.iconUrl && (
+                  <img
+                    src={profileFrame.iconUrl}
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -right-2 -top-3 h-9 w-9 object-contain drop-shadow-[0_0_6px_rgba(255,48,79,0.85)]"
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="relative shrink-0">
+                <div
+                  className="w-14 h-14 rounded-2xl border-2 flex items-center justify-center font-display text-xl font-black"
+                  style={{
+                    borderColor: profileFrame.accent,
+                    borderImage: profileFrame.borderImage,
+                    background: profileFrame.background,
+                    boxShadow: profileFrame.glow,
+                    color: profileFrame.accent,
+                  }}
+                  title={`Рамка профиля: ${profileFrame.name}`}
+                >
+                  {player.username.slice(0, 2).toUpperCase()}
+                </div>
+                {profileFrame.iconUrl && (
+                  <img
+                    src={profileFrame.iconUrl}
+                    alt=""
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -right-2 -top-3 h-9 w-9 object-contain drop-shadow-[0_0_6px_rgba(255,48,79,0.85)]"
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h2 className="font-display text-base font-extrabold text-white truncate">
+                  {player.username}
+                </h2>
+                {!tgProfile.isInsideTelegram && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraftName(player.username);
+                      setEditingName((v) => !v);
+                    }}
+                    className="p-1 text-slate-400 hover:text-[#00f0ff] cursor-pointer"
+                    title="Изменить никнейм в превью"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="inline-flex items-center gap-1.5 mt-0.5 px-2 py-0.5 rounded-md bg-[#00f0ff]/12 border border-[#00f0ff]/35 text-[11px] font-bold text-[#00f0ff]">
+                <Crown className="w-3 h-3" />
+                <span>Ранг: {derived.rankTitle}</span>
+              </div>
+              <div className="theme-accent-text mt-1 text-[10px] font-semibold" style={{ color: profileFrame.accent }}>
+                Рамка: {profileFrame.name}
+              </div>
+            </div>
+          </div>
+
+          <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+            <span className="text-[10px] px-2 py-0.5 rounded bg-[#0a0e1a] border border-slate-800 text-slate-400">
+              📱 На устройстве
+            </span>
+            <button
+              type="button"
+              onClick={openTutorial}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#00f0ff]/12 border border-[#00f0ff]/35 text-[10px] font-bold text-[#00f0ff] hover:bg-[#00f0ff]/20 cursor-pointer"
+            >
+              <BookOpen className="w-3 h-3" /> Справка и Билды
+            </button>
+          </div>
+        </div>
+
+        {editingName && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void updateDemoName(draftName);
+              setEditingName(false);
+            }}
+            className="flex gap-2 pt-1"
+          >
+            <input
+              type="text"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              maxLength={24}
+              placeholder="Ваш кибер-ник..."
+              className="flex-1 px-3 py-1.5 rounded-lg bg-[#0a0e1a] border border-slate-700 text-xs text-white focus:outline-none focus:border-[#00f0ff]"
+            />
+            <button
+              type="submit"
+              className="px-3 py-1.5 rounded-lg bg-[#00f0ff] text-[#061018] font-bold text-xs cursor-pointer"
+            >
+              Сохранить
+            </button>
+          </form>
+        )}
+
+        {/* Сводка статистики */}
+        <div className="grid grid-cols-4 gap-2 pt-1 text-center">
+          <div className="rounded-xl bg-[#0a0e1a] p-2 border border-slate-800/80">
+            <div className="text-[10px] text-slate-400">Клики</div>
+            <div className="text-xs font-bold text-white">{formatCompact(player.totalClicks)}</div>
+          </div>
+          <div className="rounded-xl bg-[#0a0e1a] p-2 border border-slate-800/80">
+            <div className="text-[10px] text-slate-400">Взломы</div>
+            <div className="text-xs font-bold text-white">{player.totalMissions}</div>
+          </div>
+          <div className="rounded-xl bg-[#0a0e1a] p-2 border border-slate-800/80">
+            <div className="text-[10px] text-slate-400">Уровень</div>
+            <div className="text-xs font-bold text-[#00f0ff]">{derived.level}</div>
+          </div>
+          <div className="rounded-xl bg-[#0a0e1a] p-2 border border-slate-800/80">
+            <div className="text-[10px] text-slate-400">Множитель</div>
+            <div className="text-xs font-bold text-[#7dff00]">×{derived.prestigeMultiplier}</div>
+          </div>
+        </div>
+
+        {/* ⚙️ Чипы (v3.5): раньше их вообще не было видно в профиле — только
+            мелкая цифра в верхней панели. Здесь и баланс, и остаток дневного
+            лимита, и честное объяснение, откуда они берутся. */}
+        <div className="rounded-xl bg-[#0a0e1a] border border-[#7dff00]/30 p-2.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-[#7dff00] flex items-center gap-1">
+              <Cog className="w-3.5 h-3.5" /> Чипы — валюта апгрейда
+            </span>
+            <span className="font-display text-sm font-extrabold text-white">{player.chips}</span>
+          </div>
+
+          <div className="flex items-center justify-between text-[10px] text-slate-400">
+            <span>выбито сегодня</span>
+            <span className={chipsLeftToday === 0 ? 'text-amber-300' : 'text-slate-300'}>
+              {chipsToday} / {CHIP_DAILY_CAP}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${Math.min(100, (chipsToday / CHIP_DAILY_CAP) * 100)}%`,
+                background:
+                  chipsLeftToday === 0
+                    ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                    : 'linear-gradient(90deg, #7dff00, #00f0ff)',
+              }}
+            />
+          </div>
+
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            Падают только за <strong className="text-slate-300">чистый успех взлома</strong>: +
+            {CHIP_REWARD_PER_MISSION} за контракт, +{CHIP_REWARD_PER_GREY_MISSION} за серый, плюс{' '}
+            {CHIP_REWARD_PER_DAILY} за ежедневный вход и за часть достижений. Тратятся на открытие
+            Тиров карточек (60 / 150 / 320) и на улучшения Базы.
+          </p>
+          {chipsLeftToday === 0 && (
+            <p className="text-[10px] text-amber-300/90">
+              Лимит на сегодня выбран — обнулится после полуночи по Москве. Data, XP и Crypto капают
+              как обычно.
+            </p>
+          )}
+        </div>
+
+        {/* Опыт и подготовка к взломам */}
+        <div className="rounded-xl bg-[#0a0e1a] border border-purple-500/25 p-2.5 space-y-1.5 mt-2">
+          <div className="flex items-center justify-between text-[10px] font-bold">
+            <span className="text-purple-300">
+              XP {formatCompact(derived.xpIntoLevel)} /{' '}
+              {formatCompact(derived.xpToNext)}
+            </span>
+            <span className="text-slate-400">всего {formatCompact(derived.totalXp)} XP</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${
+                  derived.xpToNext > 0
+                    ? Math.min(100, (derived.xpIntoLevel / derived.xpToNext) * 100)
+                    : 100
+                }%`,
+                background: 'linear-gradient(90deg, #a855f7 0%, #00f0ff 100%)',
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-slate-400">
+            <span>
+              Сила железа: <strong className="text-white">{Math.round(derived.hackPower)}⚡</strong>
+            </span>
+            <span>
+              Провалов: <strong className="text-rose-400">{player.stats.missionFails ?? 0}</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Вкладки рейтинга, достижений и коллекции */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          type="button"
+          onClick={() => setTab('achievements')}
+          className={`py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition cursor-pointer ${
+            tab === 'achievements'
+              ? 'bg-[#7dff00]/18 border-[#7dff00] text-[#7dff00]'
+              : 'bg-[#10172e] border-slate-800 text-slate-400'
+          }`}
+        >
+          <Award className="w-3.5 h-3.5" />
+          <span>Ачивки {publicUnlockedCount}/{PUBLIC_ACHIEVEMENTS_COUNT}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab('collection')}
+          className={`py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition cursor-pointer ${
+            tab === 'collection'
+              ? 'bg-purple-500/18 border-purple-400 text-purple-300'
+              : 'bg-[#10172e] border-slate-800 text-slate-400'
+          }`}
+        >
+          <span aria-hidden>🏆</span>
+          <span>Коллекция</span>
+        </button>
+
+      </div>
+
+      {tab === 'leaderboard' ? (
+        <div className="space-y-2">
+          {/* Переключатель зачёта */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {leaderboardTabs.map(({ id, label, icon }) => {
+              const active = leaderboardSort === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setLeaderboardSort(id)}
+                  className={`py-1.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 border transition cursor-pointer ${
+                    active
+                      ? 'bg-[#00f0ff]/16 border-[#00f0ff] text-[#00f0ff]'
+                      : 'bg-[#10172e] border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {icon}
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Своё место: видно даже если ты не в топ-100 */}
+          {leaderboardSelf && (
+            <div className="rounded-xl bg-[#10172e] border border-[#00f0ff]/30 px-3 py-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-400 shrink-0">
+                Ты{' '}
+                <span className="font-display font-extrabold text-white">
+                  #{leaderboardSelf.rank}
+                </span>{' '}
+                из {leaderboardSelf.total}
+              </span>
+              <span className="text-[10px] text-slate-400 text-right min-w-0 truncate">
+                {leaderboardSelf.aheadUsername ? (
+                  <>
+                    до #{leaderboardSelf.rank - 1} ({leaderboardSelf.aheadUsername}):{' '}
+                    <span className="text-[#00f0ff] font-bold">+{gapLabel}</span>
+                  </>
+                ) : (
+                  <span className="text-amber-300 font-bold">Ты первый — держи позицию</span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {!leaderboardSelf && player.tgId < 0 && (
+            <div className="rounded-xl bg-[#10172e] border border-slate-800 px-3 py-2 text-[10px] text-slate-400">
+              Тестовый режим: общий рейтинг Android ещё не готов.
+            </div>
+          )}
+
+          <div className="rounded-2xl bg-[#10172e] border border-slate-800 divide-y divide-slate-800/80 overflow-visible">
+            {leaderboard.map((entry, idx) => {
+              const avatarSkin = getSkinByKey(entry.avatarKey ?? '');
+              const frame = getProfileFrame(entry.profileFrameKey);
+              const isRoosterAvatar = entry.username === 'pohoronyat_menya';
+              const isFishAvatar = entry.username === 'SolidPegasus';
+              const isMatrixAvatar =
+                entry.username === 'useryou2202' && frame.avatarMode === 'matrix_rain';
+              const hasSpecialAvatar = isRoosterAvatar || isFishAvatar || isMatrixAvatar;
+              return (
+              <div
+                key={`${entry.username}-${idx}`}
+                className={`px-3.5 py-2.5 flex items-center justify-between gap-2 text-xs ${
+                  entry.isCurrentUser ? 'bg-[#00f0ff]/12' : ''
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span
+                    className={`w-6 text-center font-display font-extrabold ${
+                      idx === 0
+                        ? 'text-amber-300'
+                        : idx === 1
+                          ? 'text-slate-200'
+                          : idx === 2
+                            ? 'text-amber-600'
+                            : 'text-slate-500'
+                    }`}
+                  >
+                    #{idx + 1}
+                  </span>
+                  <div
+                    className={`relative shrink-0 ${
+                      isRoosterAvatar
+                        ? 'rooster-avatar-trigger'
+                        : isFishAvatar
+                          ? 'fish-avatar-trigger'
+                          : isMatrixAvatar
+                            ? 'matrix-avatar-trigger'
+                            : ''
+                    }`}
+                    onClick={
+                      isRoosterAvatar
+                        ? () => setRoosterBurstId((value) => value + 1)
+                        : isFishAvatar
+                          ? () => setFishBurstId((value) => value + 1)
+                          : isMatrixAvatar
+                            ? () => setMatrixBurstId((value) => value + 1)
+                            : undefined
+                    }
+                    onKeyDown={
+                      hasSpecialAvatar
+                        ? (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              if (isRoosterAvatar) {
+                                setRoosterBurstId((value) => value + 1);
+                              } else if (isFishAvatar) {
+                                setFishBurstId((value) => value + 1);
+                              } else {
+                                setMatrixBurstId((value) => value + 1);
+                              }
+                            }
+                          }
+                        : undefined
+                    }
+                    role={hasSpecialAvatar ? 'button' : undefined}
+                    tabIndex={hasSpecialAvatar ? 0 : undefined}
+                  >
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border-2 text-lg"
+                      style={{
+                        borderColor: frame.accent,
+                        borderImage: frame.borderImage,
+                        background: frame.background,
+                        boxShadow: frame.glow,
+                      }}
+                      title={frame.name}
+                      aria-label={`Аватар ${entry.username}, рамка ${frame.name}`}
+                    >
+                      {frame.avatarMode === 'matrix_rain' ? (
+                        <MatrixAvatar
+                          label={frame.avatarLabel ?? entry.username}
+                          burstId={isMatrixAvatar ? matrixBurstId : 0}
+                          className="h-full w-full rounded-[0.55rem]"
+                        />
+                      ) : frame.avatarUrl ? (
+                        <img
+                          src={frame.avatarUrl}
+                          alt={`Аватар ${entry.username}`}
+                          className="h-full w-full rounded-[0.55rem] object-contain p-0.5"
+                        />
+                      ) : avatarSkin?.category === 'avatar' ? (
+                        avatarSkin.avatarGlyph ?? '🕶️'
+                      ) : (
+                        '🕶️'
+                      )}
+                    </div>
+                    {frame.iconUrl && (
+                      <img
+                        src={frame.iconUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="pointer-events-none absolute -right-1.5 -top-2 h-6 w-6 object-contain drop-shadow-[0_0_5px_rgba(255,48,79,0.8)]"
+                      />
+                    )}
+                    {isRoosterAvatar && roosterBurstId > 0 && (
+                      <div
+                        key={roosterBurstId}
+                        className="rooster-burst"
+                        aria-live="polite"
+                        aria-label="Кууу Ка Рекуу"
+                      >
+                        <span className="rooster-burst__spark rooster-burst__spark--one">✦</span>
+                        <span className="rooster-burst__spark rooster-burst__spark--two">✧</span>
+                        <span className="rooster-burst__spark rooster-burst__spark--three">✦</span>
+                        <span className="rooster-burst__spark rooster-burst__spark--four">•</span>
+                        <span className="rooster-burst__text">Кууу Ка Рекуу</span>
+                      </div>
+                    )}
+                    {isFishAvatar && fishBurstId > 0 && (
+                      <div
+                        key={fishBurstId}
+                        className="fish-burst"
+                        aria-live="polite"
+                        aria-label="Блоп-Блоп"
+                      >
+                        <span className="fish-burst__bubble fish-burst__bubble--one">◦</span>
+                        <span className="fish-burst__bubble fish-burst__bubble--two">○</span>
+                        <span className="fish-burst__bubble fish-burst__bubble--three">◌</span>
+                        <span className="fish-burst__bubble fish-burst__bubble--four">°</span>
+                        <span className="fish-burst__text">Блоп-Блоп</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-white truncate flex items-center gap-1.5">
+                      {entry.profileId ? (
+                        <button
+                          type="button"
+                          onClick={() => setPublicProfileId(entry.profileId ?? null)}
+                          className="truncate text-left hover:text-[var(--ui-primary)] hover:underline cursor-pointer"
+                          title="Открыть публичный профиль"
+                        >
+                          {entry.username}
+                        </button>
+                      ) : (
+                        <span>{entry.username}</span>
+                      )}
+                      {entry.isCurrentUser && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#00f0ff] text-[#061018] font-extrabold">
+                          ВЫ
+                        </span>
+                      )}
+                      {entry.prestigeCount > 0 && (
+                        <span className="text-[9px] px-1 rounded bg-[#ff00a0]/20 border border-[#ff00a0]/45 text-[#ff00a0] font-bold shrink-0">
+                          ×{Math.pow(2, Math.min(20, entry.prestigeCount))}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className={`text-[10px] ${
+                        leaderboardSort === 'level'
+                          ? 'text-[#00f0ff] font-semibold'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      Ур. {entry.level} • {entry.rankTitle}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="shrink-0 text-right leading-tight space-y-0.5">
+                  <div
+                    className={`text-[11px] font-bold tabular-nums ${
+                      leaderboardSort === 'xp' ? 'text-[#c084fc]' : 'text-slate-500'
+                    }`}
+                    title="Опыт за всё время — не тратится"
+                  >
+                    ⚡ {formatCompact(entry.xp)} XP
+                  </div>
+                  <div
+                    className={`text-[11px] font-bold tabular-nums ${
+                      leaderboardSort === 'data' ? 'text-[#7dff00]' : 'text-slate-500'
+                    }`}
+                    title="Текущий баланс Data"
+                  >
+                    💠 {formatCompact(entry.data)}
+                  </div>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : tab === 'achievements' ? (
+        <AchievementsPanel />
+      ) : (
+        <CollectionPanel />
+      )}
+
+      {/* Визуальная шкала «Белый хакинг ←→ Чёрный хакинг» */}
+      <div className="rounded-2xl bg-[#10172e] border border-slate-800 p-4 space-y-2.5">
+        <div className="flex items-center justify-between text-xs font-bold">
+          <span className="text-[#00f0ff]">🛡️ Белый хакинг ({player.rep} Rep)</span>
+          <span className="text-[#ff00a0]">🕶️ Чёрный хакинг ({player.heat}/100 Heat)</span>
+        </div>
+
+        <div className="relative h-3 rounded-full bg-gradient-to-r from-[#00f0ff]/40 via-slate-700 to-[#ff00a0]/50 border border-slate-700">
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-white border-2 border-[#0a0e1a] shadow-[0_0_12px_#fff] transition-all duration-300"
+            style={{ left: `${alignmentMarkerPct}%` }}
+          />
+        </div>
+
+        <div className="text-[11px] text-slate-300 bg-[#0a0e1a] rounded-xl p-2.5 border border-slate-800/80">
+          {derived.alignment === 'white_hat' ? (
+            <span className="text-[#00f0ff] font-semibold">
+              Активна ветка <strong>Белого хакинга</strong>: +20% к пассивному Data/час и ×2 награда за
+              ликвидацию белых целей!
+            </span>
+          ) : derived.alignment === 'black_hat' ? (
+            <span className="text-[#ff00a0] font-semibold">
+              Активна ветка <strong>Чёрного хакинга</strong>: +50% Data за каждый клик, но розыск Heat
+              растёт быстрее. Не превышайте 100 Heat!
+            </span>
+          ) : (
+            <span className="text-slate-400">
+              Для <strong>Белого хакинга</strong> наберите <code>Rep &gt; Heat × 2</code> (мин. 10). Для{' '}
+              <strong>Чёрного хакинга</strong> — <code>Heat &gt; Rep × 2</code> (мин. 10).
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Панель Престижа — Global Hack на 50 уровне (п. 3 и 5.5 ТЗ) */}
+      <div className="rounded-2xl bg-gradient-to-br from-[#161233] to-[#0f172e] border border-purple-500/40 p-4 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 font-display text-sm font-extrabold text-white">
+            <Globe className="w-4 h-4 text-[#ff00a0]" />
+            <span>GLOBAL HACK — ПРЕСТИЖ</span>
+          </div>
+          <span className="text-xs font-bold text-purple-300">
+            Ур. {derived.level} / {requiredPrestigeLevel}
+          </span>
+        </div>
+
+        <p className="text-[11px] text-slate-300 leading-relaxed">
+          На {requiredPrestigeLevel} уровне вы можете перезапустить матрицу: карточки, команда и Data
+          обнулятся, но вы навсегда получите{' '}
+          <strong>множитель ×{nextPrestigeMultiplier} к доходу</strong>, сохраните все{' '}
+          <strong>💎 Crypto, достижения, скины и Rep</strong>!
+        </p>
+
+        <button
+          type="button"
+          disabled={!canPrestige || busyKey === 'prestige'}
+          onClick={() => void triggerPrestige()}
+          className={`w-full py-2.5 rounded-xl font-display font-extrabold text-xs uppercase tracking-wider transition cursor-pointer ${
+            canPrestige
+              ? 'bg-gradient-to-r from-[#ff00a0] to-purple-500 text-white shadow-[0_0_24px_rgba(255,0,160,0.45)]'
+              : 'bg-[#0a0e1a]/90 text-slate-500 border border-slate-800 cursor-not-allowed'
+          }`}
+        >
+          {canPrestige
+            ? `🌐 ЗАПУСТИТЬ GLOBAL HACK (×${nextPrestigeMultiplier} НАВСЕГДА)`
+            : `Требуется ${requiredPrestigeLevel} уровень (ещё ${requiredPrestigeLevel - derived.level} ур.)`}
+        </button>
+      </div>
+
+      {/* Рефералка: своя ссылка, статистика и правила (v3.5) */}
+
+
+      {/* Донат (Telegram Stars): карточка внизу профиля, чтобы не дублировать
+          навигацию на рабочем столе и не мешать тапать. */}
+
+
+      <OfflineBackup />
+
+      {/* Обязательное уведомление юридической безопасности (раздел 9 ТЗ) */}
+      <div className="rounded-xl bg-[#0b1020] border border-slate-800/80 p-3 text-[10px] text-slate-400 leading-relaxed flex items-start gap-2">
+        <Scale className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+        <span>
+          <strong className="text-slate-300">Возрастной рейтинг: 12+.</strong> Hacker Kombat —
+          вымышленная развлекательная игра. Не обучает реальному взлому и не пропагандирует
+          киберпреступность. Все названия организаций, сетей и события полностью выдуманы.
+        </span>
+      </div>
+
+      <PublicProfileModal profileId={publicProfileId} onClose={() => setPublicProfileId(null)} />
+    </div>
+  );
+};

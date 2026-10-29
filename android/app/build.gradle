@@ -1,0 +1,24 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'ru.hackerkombat.offline'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'ru.hackerkombat.offline'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '0.1-test'
+    }
+}
+
+// Avoid accidentally building an empty APK. Assets are generated, not stored in git.
+tasks.configureEach { task ->
+    if (task.name == 'preBuild') {
+        task.doFirst {
+            if (!file('src/main/assets/web/index.html').exists()) {
+                throw new GradleException('Web assets missing. Run: node android/scripts/sync-web.mjs from the repository root.')
+            }
+        }
+    }
+}
