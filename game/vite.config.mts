@@ -20,6 +20,8 @@ export default defineConfig(() => {
       allowedHosts: true as const,
     },
     build: {
+      // Older Android WebViews (including some BlueStacks instances) lack modern JS syntax.
+      target: 'chrome70',
       rollupOptions: {
         output: {
           manualChunks: {

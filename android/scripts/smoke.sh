@@ -14,3 +14,7 @@ for label, file in [('UI', '/tmp/hk-ui.xml'), ('LOG', '/tmp/hk-log.txt')]:
     text = Path(file).read_text(errors='replace')[-12000:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
     print(f'::warning title={label}::{text}')
 PY
+if ! grep -q 'SCREEN:.*HACK' /tmp/hk-log.txt; then
+  echo '::error::Game did not render its main screen in Android WebView.'
+  exit 1
+fi
