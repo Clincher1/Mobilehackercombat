@@ -56,6 +56,12 @@ public final class MainActivity extends Activity {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return loadAsset(request.getUrl(), request.getMethod());
             }
+            @Override public void onPageFinished(WebView view, String url) {
+                if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 && isLocal(Uri.parse(url))) {
+                    view.postDelayed(() -> view.evaluateJavascript("document.body.innerText.slice(0, 900)",
+                            value -> Log.e("HKOffline", "SCREEN: " + value)), 12000);
+                }
+            }
         });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onConsoleMessage(ConsoleMessage message) {
